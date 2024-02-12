@@ -129,17 +129,14 @@ func (s *AccountsDBStore) AddTransaction(ctx context.Context, clientID int, tran
 }
 
 func (s *AccountsDBStore) GetStatement(ctx context.Context, clientID int) (statement, error) {
-	queryTransactions := `SELECT t.amount, t.description, t.type, t.created_at, a.acc_limit, a.balance 
+	queryTransactions := `SELECT t.amount, t.description, t.type, t.created_at
 						  FROM transactions t
-						  JOIN accounts a ON t.account_id = a.id
-						  WHERE a.id = $1 
+						  WHERE t.account_id = $1
 						  ORDER BY t.created_at desc LIMIT 10`
 
-	rows, err := s.dbPool.Query(ctx, queryTransactions, clientID)
-	if err != nil {
-		return statement{}, fmt.Errorf("querying transactions: %w", err)
-	}
-	defer rows.Close()
+	queryBalance := `SELECT a.acc_limit, a.balance
+						  FROM accounts a
+						  WHERE a.id = $1`
 
 	var (
 		transactions []transaction
@@ -147,9 +144,23 @@ func (s *AccountsDBStore) GetStatement(ctx context.Context, clientID int) (state
 		limit        int64
 	)
 
+	batch := pgx.Batch{}
+
+	batch.Queue(queryTransactions, clientID)
+	batch.Queue(queryBalance, clientID)
+
+	results := s.dbPool.SendBatch(ctx, &batch)
+	defer results.Close()
+
+	rows, err := results.Query()
+	if err != nil {
+		return statement{}, fmt.Errorf("querying transactions: %w", err)
+	}
+	defer rows.Close()
+
 	for rows.Next() {
 		var t transaction
-		if err := rows.Scan(&t.Amount, &t.Description, &t.Type, &t.CreateAt, &limit, &currBalance); err != nil {
+		if err := rows.Scan(&t.Amount, &t.Description, &t.Type, &t.CreateAt); err != nil {
 			return statement{}, fmt.Errorf("scanning transaction: %w", err)
 		}
 		transactions = append(transactions, t)
@@ -161,6 +172,10 @@ func (s *AccountsDBStore) GetStatement(ctx context.Context, clientID int) (state
 
 	if transactions == nil {
 		transactions = []transaction{}
+	}
+
+	if err := results.QueryRow().Scan(&limit, &currBalance); err != nil {
+		return statement{}, fmt.Errorf("querying balance: %w", err)
 	}
 
 	return statement{

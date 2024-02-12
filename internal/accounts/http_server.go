@@ -13,7 +13,8 @@ import (
 )
 
 type apiServer struct {
-	server http.Server
+	server   http.Server
+	resource *clientResource
 }
 
 func NewServer(port int, store AccountsStore, isLocal bool) *apiServer {
@@ -28,22 +29,25 @@ func NewServer(port int, store AccountsStore, isLocal bool) *apiServer {
 			Addr:    addr,
 			Handler: r,
 		},
-	}
-
-	resource := clientResource{
-		store: store,
+		resource: &clientResource{store: store},
 	}
 
 	r.Use(setJSONContentType)
 	r.HandleFunc("/status", statusHandler).Methods(http.MethodGet)
-	r.HandleFunc("/warmup", resource.warmup).Methods(http.MethodGet)
-	r.HandleFunc("/clientes/{id}/transacoes", resource.postTransaction).Methods(http.MethodPost)
-	r.HandleFunc("/clientes/{id}/extrato", resource.getStatement).Methods(http.MethodGet)
+	r.HandleFunc("/warmup", api.resource.warmup).Methods(http.MethodGet)
+	r.HandleFunc("/clientes/{id}/transacoes", api.resource.postTransaction).Methods(http.MethodPost)
+	r.HandleFunc("/clientes/{id}/extrato", api.resource.getStatement).Methods(http.MethodGet)
 
 	return api
 }
 
 func (s *apiServer) Start(ctx context.Context) error {
+	err := s.resource.loadExistingClients(ctx)
+	if err != nil {
+		return fmt.Errorf("loading existing clients: %w", err)
+	}
+	log.Info().Msg("Existing clients loaded")
+
 	log.Info().Msgf("Listening HTTP on address %s", s.server.Addr)
 
 	if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {

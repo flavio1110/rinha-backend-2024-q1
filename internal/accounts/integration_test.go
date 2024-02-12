@@ -53,6 +53,24 @@ func Test_Endpoints(t *testing.T) {
 		assert.Equal(t, 200, resp.StatusCode)
 	})
 
+	t.Run("get statement for client 1 before transactions", func(t *testing.T) {
+		resp, err := ts.Client().Get(fmt.Sprintf("%s/clientes/%d/extrato", ts.URL, 1))
+		assert.NoError(t, err)
+		assert.Equal(t, 200, resp.StatusCode)
+
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		var s statement
+		err = json.Unmarshal(body, &s)
+		require.NoError(t, err)
+
+		assert.Equal(t, int64(100000), s.Balance.Limit)
+		assert.Equal(t, int64(0), s.Balance.Total)
+		assert.Len(t, s.Transactions, 0)
+	})
+
 	t.Run("post transaction", func(t *testing.T) {
 		// ClientID 1 has a limit of 100000
 		tcs := []tcPost{

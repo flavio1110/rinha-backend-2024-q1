@@ -94,19 +94,30 @@ func (s *clientResource) getClientID(r *http.Request) (int, error) {
 }
 
 func (s *clientResource) warmup(w http.ResponseWriter, r *http.Request) {
-	s.existingClients = make(map[string]uint64)
+	err := s.loadExistingClients(r.Context())
 
-	clients, err := s.store.GetAllClients(r.Context())
 	if err != nil {
 		log.Err(err).Msg("error getting all clients")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
+func (s *clientResource) loadExistingClients(ctx context.Context) error {
+	s.existingClients = make(map[string]uint64)
+
+	clients, err := s.store.GetAllClients(ctx)
+	if err != nil {
+		return fmt.Errorf("getting all clients: %w", err)
+	}
+
 	for _, client := range clients {
 		s.existingClients[fmt.Sprintf("%d", client.ID)] = uint64(client.Limit)
 	}
 
-	w.WriteHeader(http.StatusOK)
+	return nil
 }
 
 type transaction struct {

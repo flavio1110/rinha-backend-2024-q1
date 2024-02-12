@@ -45,10 +45,10 @@ services:
           cpus: "0.4"
           memory: "60MB"
     healthcheck:
-      test: curl -o /dev/null -s --retry 0 --head http://localhost:8080/warmup || exit 1
+      test: curl -o /dev/null -s --retry 0 --head http://localhost:8080/status || exit 1
       interval: 2s
       retries: 10
-      start_period: 20s
+      start_period: 5s
       timeout: 5s
   api2: # API - Instância 02
     <<: *api
@@ -73,8 +73,8 @@ services:
           cpus: "0.1"
           memory: "30MB"
     healthcheck:
-      test: curl --fail http://localhost:9999/warmup || exit 1
+      test: curl --fail http://localhost:9999/status || exit 1
       interval: 5s
-      timeout: 10s
+      timeout: 5s
       retries: 10
       start_period: 20s
