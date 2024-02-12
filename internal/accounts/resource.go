@@ -34,13 +34,13 @@ func (s *clientResource) postTransaction(w http.ResponseWriter, r *http.Request)
 	var t transaction
 
 	if err := json.NewDecoder(r.Body).Decode(&t); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		w.WriteHeader(http.StatusUnprocessableEntity)
 		return
 	}
 	defer r.Body.Close()
 
 	if !t.isValid() {
-		w.WriteHeader(http.StatusBadRequest)
+		w.WriteHeader(http.StatusUnprocessableEntity)
 		return
 	}
 
