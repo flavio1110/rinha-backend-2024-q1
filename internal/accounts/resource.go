@@ -154,7 +154,7 @@ type currentBalance struct {
 
 type statement struct {
 	Balance      balance       `json:"saldo"`
-	Transactions []transaction `json:"transacoes"`
+	Transactions []transaction `json:"ultimas_transacoes"`
 }
 
 type balance struct {
