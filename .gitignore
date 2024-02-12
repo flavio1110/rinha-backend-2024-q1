@@ -22,3 +22,5 @@ go.work
 bin/
 .DS_Store
 
+# Files from the challenge repo
+rinha-original/

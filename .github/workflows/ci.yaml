@@ -58,7 +58,7 @@ jobs:
           echo GATLING_OUTPUT_FOLDER=$(ls $WORKSPACE/user-files/results | sort | head -n 1) >> $GITHUB_ENV
           sleep 3 # wait for the server to start
         env:
-          WORKSPACE: ${{ github.workspace }}/rinha-de-backend-2023-q3/load-test
+          WORKSPACE: ${{ github.workspace }}/rinha-original/load-test
       - name: warmp-up
         run: curl -v "http://localhost:9999/warmup"
       - name: Deploy

@@ -42,3 +42,22 @@ compose-up:
 .PHONY: compose-complete-down
 compose-down:
 	@docker-compose -f ./deploy/docker-compose.yml -p "flavio1110-rinha-2024-q1" down
+
+.PHONY: prepare-load-test
+prepare-load-test:
+	@rm -rf rinha-original
+	@mkdir rinha-original
+	@git clone --single-branch --quiet https://github.com/zanfranceschi/rinha-de-backend-2024-q1 rinha-original
+	@wget https://repo1.maven.org/maven2/io/gatling/highcharts/gatling-charts-highcharts-bundle/3.9.5/gatling-charts-highcharts-bundle-3.9.5-bundle.zip -P rinha-original
+	@unzip rinha-original/gatling-charts-highcharts-bundle-3.9.5-bundle.zip -d rinha-original
+	@cd ..
+
+.PHONY: load-test
+load-test:
+	@./scripts/build-image.sh
+	@docker-compose -f ./deploy/docker-compose.yml -p "flavio1110-rinha-2024-q1" up -d --force-recreate
+	
+	@export WORKSPACE=/Users/flaviosilva/code/rinha-backend-2024-q1/rinha-original/load-test
+
+	@./rinha-original/gatling-charts-highcharts-bundle-3.9.5/bin/gatling.sh -rm local -s RinhaBackendCrebitosSimulation -rd "DESCRICAO" -rf $$WORKSPACE/user-files/results -sf $$WORKSPACE/user-files/simulations -rsf $$WORKSPACE/user-files/resources
+	@docker-compose -f ./deploy/docker-compose.yml -p "flavio1110-rinha-2024-q1" down
