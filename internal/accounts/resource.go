@@ -47,12 +47,12 @@ func (s *clientResource) postTransaction(w http.ResponseWriter, r *http.Request)
 	newBalance, err := s.store.AddTransaction(r.Context(), id, t)
 
 	if err != nil {
-		if errors.Is(err, errAddSkipped) {
+		if errors.Is(err, errInsufficientFunds) {
 			w.WriteHeader(http.StatusUnprocessableEntity)
 			return
 		}
 
-		log.Err(err).Msg("error adding pessoa")
+		log.Err(err).Msg("error adding transaction")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -80,6 +80,11 @@ func (s *clientResource) getStatement(w http.ResponseWriter, r *http.Request) {
 
 func (s *clientResource) getClientID(r *http.Request) (int, error) {
 	idParam := mux.Vars(r)["id"]
+
+	if _, exists := s.existingClients[idParam]; !exists {
+		return 0, errors.New("client not found")
+	}
+
 	id, err := strconv.Atoi(idParam)
 	if err != nil {
 		return 0, err
@@ -89,8 +94,8 @@ func (s *clientResource) getClientID(r *http.Request) (int, error) {
 }
 
 func (s *clientResource) warmup(w http.ResponseWriter, r *http.Request) {
-
 	s.existingClients = make(map[string]uint64)
+
 	clients, err := s.store.GetAllClients(r.Context())
 	if err != nil {
 		log.Err(err).Msg("error getting all clients")
@@ -153,4 +158,4 @@ type client struct {
 	Balance int64 `json:"saldo"`
 }
 
-var errAddSkipped = errors.New("skipped due to conflict")
+var errInsufficientFunds = errors.New("insufficient funds")

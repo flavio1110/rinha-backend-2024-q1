@@ -38,7 +38,7 @@ func NewServer(port int, store AccountsStore, isLocal bool) *apiServer {
 	r.HandleFunc("/status", statusHandler).Methods(http.MethodGet)
 	r.HandleFunc("/warmup", resource.warmup).Methods(http.MethodGet)
 	r.HandleFunc("/clientes/{id}/transacoes", resource.postTransaction).Methods(http.MethodPost)
-	r.HandleFunc("/clientes/[id]/extrato", resource.getStatement).Methods(http.MethodGet)
+	r.HandleFunc("/clientes/{id}/extrato", resource.getStatement).Methods(http.MethodGet)
 
 	return api
 }

@@ -2,10 +2,11 @@ package accounts
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
-	"github.com/jackc/pgx"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
 )
@@ -71,8 +72,10 @@ func (s *AccountsDBStore) AddTransaction(ctx context.Context, clientID int, tran
 		return currentBalance{}, fmt.Errorf("beginning transaction: %w", err)
 	}
 	defer func() {
-		if err := tx.Rollback(ctx); err != nil && err != pgx.ErrTxClosed {
-			log.Err(err).Msg("rolling back transaction")
+		errRollback := tx.Rollback(ctx)
+
+		if !errors.Is(err, pgx.ErrTxClosed) {
+			log.Err(errRollback).Msg("fail to rollback transaction")
 		}
 	}()
 
@@ -86,20 +89,31 @@ func (s *AccountsDBStore) AddTransaction(ctx context.Context, clientID int, tran
 		amountToChange = -amountToChange
 	}
 
-	updateStt := `UPDATE account 
+	updateStt := `UPDATE accounts 
 				  SET balance = balance + $1 
-				  WHERE id = $2 &&  AND acc_limit >= ABS(balance + $1)
-				  RETURNING balance, limit`
+				  WHERE id = $2 AND acc_limit >= ABS(balance + $1)
+				  RETURNING balance, acc_limit`
 
 	err = tx.QueryRow(ctx, updateStt, amountToChange, clientID).Scan(&newBalance, &limit)
+
+	if errors.Is(err, pgx.ErrNoRows) {
+		return currentBalance{}, errInsufficientFunds
+	}
 	if err != nil {
-		return currentBalance{}, fmt.Errorf("querying current balance: %w", err)
+		return currentBalance{}, fmt.Errorf("updating balance: %w", err)
 	}
 
-	insertStt := `INSERT INTO transactions (client_id, amount, description, type)
-				  VALUES ($1, $2, $3, $4)`
+	insertStt := `INSERT INTO transactions (account_id, amount, description, type, created_at)
+				  VALUES ($1, $2, $3, $4, $5)`
 
-	_, err = tx.Exec(ctx, insertStt, clientID, transaction.Amount, transaction.Description, transaction.Type)
+	_, err = tx.Exec(ctx,
+		insertStt,
+		clientID,
+		transaction.Amount,
+		transaction.Description,
+		transaction.Type,
+		time.Now().UTC())
+
 	if err != nil {
 		return currentBalance{}, fmt.Errorf("updating balance: %w", err)
 	}
@@ -119,7 +133,7 @@ func (s *AccountsDBStore) GetStatement(ctx context.Context, clientID int) (state
 						  FROM transactions t
 						  JOIN accounts a ON t.account_id = a.id
 						  WHERE a.id = $1 
-						  ORDER_BY t.created_at desc LIMIT 10`
+						  ORDER BY t.created_at desc LIMIT 10`
 
 	rows, err := s.dbPool.Query(ctx, queryTransactions, clientID)
 	if err != nil {
