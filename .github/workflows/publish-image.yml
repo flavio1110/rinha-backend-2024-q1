@@ -1,0 +1,62 @@
+name: Publish Image
+
+on:
+  push:
+    tags:
+      - "*"
+  workflow_dispatch:
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-go@v4
+        with:
+          go-version: "1.21"
+      - uses: actions/checkout@v2
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v2
+        with:
+          working-directory: .
+          version: latest
+
+  acceptance-tests:
+    name: Acceptance Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v4
+        with:
+          go-version: "1.21"
+      - run: make tests
+  smoke_test:
+    name: Smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-go@v4
+        with:
+          go-version: "1.21"
+      - uses: actions/checkout@v2
+      - run: |
+          make compose-up
+          sleep 3 # wait for the server to start
+          curl -o /dev/null -s --retry 0 --head http://localhost:9999/warmup || exit 1
+          echo "https://${{ github.repository_owner }}.github.io/${{ env.GH_REPO }}/${{ env.GATLING_OUTPUT_FOLDER }}" >> "${GITHUB_STEP_SUMMARY}"
+  build-image:
+    name: Build and Publish image
+    runs-on: ubuntu-latest
+    needs:
+      - lint
+      - acceptance-tests
+      - smoke_test
+    env:
+      tag: stable-v2
+    steps:
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+      - uses: actions/checkout@v2
+      - run: ./scripts/build-image.sh

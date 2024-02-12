@@ -159,6 +159,10 @@ func (s *AccountsDBStore) GetStatement(ctx context.Context, clientID int) (state
 		return statement{}, fmt.Errorf("iterating rows: %w", err)
 	}
 
+	if transactions == nil {
+		transactions = []transaction{}
+	}
+
 	return statement{
 		Transactions: transactions,
 		Balance: balance{

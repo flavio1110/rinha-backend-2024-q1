@@ -28,7 +28,7 @@ down-deps:
 
 .PHONY: up-deps
 up-deps:
-	@docker-compose -f ./deploy/docker-compose.yml -p "flavio1110-rinha-2024-q1" up -d postgres
+	@docker-compose -f ./deploy/docker-compose.yml -p "flavio1110-rinha-2024-q1" up -d --force-recreate postgres  
 
 .PHONY: build-docker
 build-docker:
@@ -37,7 +37,7 @@ build-docker:
 .PHONY: compose-up
 compose-up:
 	@./scripts/build-image.sh
-	@docker-compose -f ./deploy/docker-compose.yml -p "flavio1110-rinha-2024-q1" up -d
+	@docker-compose -f ./deploy/docker-compose.yml -p "flavio1110-rinha-2024-q1" up -d --force-recreate
 
 .PHONY: compose-complete-down
 compose-down:

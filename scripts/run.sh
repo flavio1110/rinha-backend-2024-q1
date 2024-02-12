@@ -9,4 +9,4 @@ export TRACE_ENABLED=false
 
 CGO_ENABLED=0 go build  -gcflags="all=-N -l"  -o ./bin/rinha-backend-2024-q1 .
 
-./bin/rinha-backend
+./bin/rinha-backend-2024-q1
