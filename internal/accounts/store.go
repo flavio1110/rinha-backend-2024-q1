@@ -74,7 +74,8 @@ func (s *AccountsDBStore) AddTransaction(ctx context.Context, clientID int, tran
 	defer func() {
 		errRollback := tx.Rollback(ctx)
 
-		if !errors.Is(err, pgx.ErrTxClosed) {
+		// :( errors.Is(errRollback, pgx.ErrTxClosed) doesn't work
+		if errRollback != nil && errRollback.Error() != "tx is closed" {
 			log.Err(errRollback).Msg("fail to rollback transaction")
 		}
 	}()

@@ -37,7 +37,7 @@ build-docker:
 .PHONY: compose-up
 compose-up:
 	@./scripts/build-image.sh
-	@docker-compose -f ./deploy/docker-compose.yml -p "flavio1110-rinha-2024-q1" up -d --force-recreate
+	@docker-compose -f ./deploy/docker-compose.yml -p "flavio1110-rinha-2024-q1" up -d --force-recreate --renew-anon-volumes
 
 .PHONY: compose-complete-down
 compose-down:
@@ -55,7 +55,7 @@ prepare-load-test:
 .PHONY: load-test
 load-test:
 	@./scripts/build-image.sh
-	@docker-compose -f ./deploy/docker-compose.yml -p "flavio1110-rinha-2024-q1" up -d --force-recreate
+	@docker-compose -f ./deploy/docker-compose.yml -p "flavio1110-rinha-2024-q1" up -d --force-recreate --renew-anon-volumes
 	
 	@export WORKSPACE=/Users/flaviosilva/code/rinha-backend-2024-q1/rinha-original/load-test
 

@@ -13,6 +13,8 @@ values
     (4, 10000000, 0),
     (5, 500000, 0);
 
+ALTER TABLE Accounts SET (fillfactor = 90);
+
 CREATE TABLE Transactions (
     id bigserial PRIMARY KEY,
     account_id bigint NOT NULL, -- no FK for simplicity and speed. Not recommended :)
@@ -20,4 +22,6 @@ CREATE TABLE Transactions (
     type varchar(1) NOT NULL, -- d or c
     description varchar(10) NOT NULL,
     created_at timestamp NOT NULL
-)
+);
+
+CREATE INDEX idx_account_id ON Transactions (account_id, created_at DESC);
