@@ -29,7 +29,7 @@ func Test_Endpoints(t *testing.T) {
 	require.NoError(t, err)
 	defer terminateDB(t)
 
-	store, terminateDBPool, err := NewAccountsDBStore(DBConfig{DbURL: connString, MaxConn: 10, MinConn: 5})
+	store, terminateDBPool, err := NewAccountsDBStore(ctx, time.Microsecond*1, DBConfig{DbURL: connString, MaxConn: 10, MinConn: 5})
 	require.NoError(t, err, "configure db store")
 	defer terminateDBPool()
 
@@ -159,6 +159,8 @@ func Test_Endpoints(t *testing.T) {
 		}
 	})
 
+	// wait for the pump to process the transactions
+	time.Sleep(time.Millisecond * 100)
 	t.Run("get statement for client 1", func(t *testing.T) {
 		resp, err := ts.Client().Get(fmt.Sprintf("%s/clientes/%d/extrato", ts.URL, 1))
 		assert.NoError(t, err)

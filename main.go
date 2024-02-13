@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"strconv"
 	"syscall"
+	"time"
 
 	"github.com/flavio1110/rinha-de-backend-2024-q1/internal/accounts"
 	"github.com/rs/zerolog"
@@ -17,14 +18,16 @@ import (
 func main() {
 	zerolog.SetGlobalLevel(zerolog.InfoLevel)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx := log.Logger.WithContext(context.Background())
+
+	ctx, cancel := context.WithCancel(ctx)
 
 	dbConfig, err := getDBConfig()
 	if err != nil {
 		log.Fatal().Err(err).Msg("configure db")
 	}
 
-	store, terminateDBPool, err := accounts.NewAccountsDBStore(dbConfig)
+	store, terminateDBPool, err := accounts.NewAccountsDBStore(ctx, time.Second*30, dbConfig)
 	if err != nil {
 		log.Fatal().Err(err).Msg("configure db store")
 	}

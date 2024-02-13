@@ -12,7 +12,9 @@ import (
 )
 
 type AccountsDBStore struct {
-	dbPool *pgxpool.Pool
+	dbPool       *pgxpool.Pool
+	chTran       chan transaction
+	pumpInterval time.Duration
 }
 
 type DBConfig struct {
@@ -22,6 +24,8 @@ type DBConfig struct {
 }
 
 func NewAccountsDBStore(
+	ctx context.Context,
+	pumpInterval time.Duration,
 	config DBConfig) (*AccountsDBStore, func(), error) {
 
 	pgxConfig, err := pgxpool.ParseConfig(config.DbURL)
@@ -38,9 +42,15 @@ func NewAccountsDBStore(
 		return nil, nil, fmt.Errorf("creating connection pool: %w", err)
 	}
 
-	return &AccountsDBStore{
-		dbPool: dbPool,
-	}, dbPool.Close, nil
+	store := &AccountsDBStore{
+		dbPool:       dbPool,
+		chTran:       make(chan transaction, 1000),
+		pumpInterval: pumpInterval,
+	}
+
+	go store.StartTransactionPump(ctx)
+
+	return store, dbPool.Close, nil
 }
 
 func (s *AccountsDBStore) GetAllClients(ctx context.Context) ([]client, error) {
@@ -67,19 +77,6 @@ func (s *AccountsDBStore) GetAllClients(ctx context.Context) ([]client, error) {
 }
 
 func (s *AccountsDBStore) AddTransaction(ctx context.Context, clientID int, transaction transaction) (currentBalance, error) {
-	tx, err := s.dbPool.Begin(ctx)
-	if err != nil {
-		return currentBalance{}, fmt.Errorf("beginning transaction: %w", err)
-	}
-	defer func() {
-		errRollback := tx.Rollback(ctx)
-
-		// :( errors.Is(errRollback, pgx.ErrTxClosed) doesn't work
-		if errRollback != nil && errRollback.Error() != "tx is closed" {
-			log.Err(errRollback).Msg("fail to rollback transaction")
-		}
-	}()
-
 	var (
 		newBalance     int64
 		limit          int64
@@ -95,7 +92,7 @@ func (s *AccountsDBStore) AddTransaction(ctx context.Context, clientID int, tran
 				  WHERE id = $2 AND acc_limit >= ABS(balance + $1)
 				  RETURNING balance, acc_limit`
 
-	err = tx.QueryRow(ctx, updateStt, amountToChange, clientID).Scan(&newBalance, &limit)
+	err := s.dbPool.QueryRow(ctx, updateStt, amountToChange, clientID).Scan(&newBalance, &limit)
 
 	if errors.Is(err, pgx.ErrNoRows) {
 		return currentBalance{}, errInsufficientFunds
@@ -104,24 +101,8 @@ func (s *AccountsDBStore) AddTransaction(ctx context.Context, clientID int, tran
 		return currentBalance{}, fmt.Errorf("updating balance: %w", err)
 	}
 
-	insertStt := `INSERT INTO transactions (account_id, amount, description, type, created_at)
-				  VALUES ($1, $2, $3, $4, $5)`
-
-	_, err = tx.Exec(ctx,
-		insertStt,
-		clientID,
-		transaction.Amount,
-		transaction.Description,
-		transaction.Type,
-		time.Now().UTC())
-
-	if err != nil {
-		return currentBalance{}, fmt.Errorf("updating balance: %w", err)
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return currentBalance{}, fmt.Errorf("committing transaction: %w", err)
-	}
+	transaction.AccountID = clientID
+	s.chTran <- transaction
 
 	return currentBalance{
 		Balance: newBalance,
@@ -187,4 +168,49 @@ func (s *AccountsDBStore) GetStatement(ctx context.Context, clientID int) (state
 			Limit: limit,
 		},
 	}, nil
+}
+
+func (s *AccountsDBStore) StartTransactionPump(ctx context.Context) {
+	log.Ctx(ctx).Info().Msg("starting transaction pump")
+
+	bulk := make([]transaction, 0, 1000)
+
+	pump := func() {
+		if len(bulk) == 0 {
+			return
+		}
+
+		log.Ctx(ctx).Info().Msgf("bulk inserting %d transactions", len(bulk))
+
+		s.bulkInsertTransactions(ctx, bulk)
+		bulk = bulk[:0]
+	}
+	for {
+		select {
+		case <-ctx.Done():
+			pump()
+			log.Ctx(ctx).Info().Msg("Stopped transactions pump")
+			return
+		case t := <-s.chTran:
+			bulk = append(bulk, t)
+
+			if len(bulk) == 1000 {
+				pump()
+			}
+		case <-time.After(s.pumpInterval):
+			pump()
+		}
+	}
+}
+
+func (s *AccountsDBStore) bulkInsertTransactions(ctx context.Context, bulk []transaction) {
+	columns := []string{"account_id", "amount", "description", "type", "created_at"}
+
+	_, err := s.dbPool.CopyFrom(ctx, pgx.Identifier{"transactions"}, columns, pgx.CopyFromSlice(len(bulk), func(i int) ([]any, error) {
+		return []any{bulk[i].AccountID, bulk[i].Amount, bulk[i].Description, bulk[i].Type, time.Now().UTC()}, nil
+	}))
+
+	if err != nil {
+		log.Ctx(ctx).Err(err).Msg("error inserting transactions")
+	}
 }
