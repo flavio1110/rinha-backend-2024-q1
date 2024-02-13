@@ -24,4 +24,4 @@ CREATE TABLE Transactions (
     created_at timestamp NOT NULL
 );
 
-CREATE INDEX idx_account_id ON Transactions (account_id, created_at DESC);
+CREATE INDEX idx_account_id ON Transactions (account_id, created_at DESC) INCLUDE (amount, type, description);

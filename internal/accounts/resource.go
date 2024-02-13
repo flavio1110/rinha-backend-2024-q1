@@ -125,7 +125,7 @@ type transaction struct {
 	Description string          `json:"descricao"`
 	Type        TransactionType `json:"tipo"`
 	CreateAt    time.Time       `json:"realizada_em"`
-	AccountID   int             `json:"_"`
+	AccountID   int             `json:"-"`
 }
 
 func (t *transaction) isValid() bool {
