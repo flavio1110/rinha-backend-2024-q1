@@ -1,10 +1,9 @@
 module github.com/flavio1110/rinha-de-backend-2024-q1
 
-go 1.21
+go 1.22
 
 require (
 	github.com/docker/go-connections v0.4.0
-	github.com/gorilla/mux v1.8.0
 	github.com/jackc/pgx/v5 v5.5.3
 	github.com/rs/zerolog v1.30.0
 	github.com/stretchr/testify v1.8.4

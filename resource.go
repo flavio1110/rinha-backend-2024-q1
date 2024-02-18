@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gorilla/mux"
 	"github.com/rs/zerolog/log"
 )
 
@@ -85,7 +84,7 @@ func (s *clientResource) getStatement(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *clientResource) getClientID(r *http.Request) (int, error) {
-	idParam := mux.Vars(r)["id"]
+	idParam := r.PathValue("id")
 
 	if _, exists := s.existingClients[idParam]; !exists {
 		return 0, errors.New("client not found")

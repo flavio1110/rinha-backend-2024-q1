@@ -7,9 +7,6 @@ import (
 	"fmt"
 	"net/http"
 
-	//_ "net/http/pprof"
-
-	"github.com/gorilla/mux"
 	"github.com/rs/zerolog/log"
 )
 
@@ -19,27 +16,27 @@ type apiServer struct {
 }
 
 func newServer(port int, store accountsStore, isLocal bool) *apiServer {
-	r := mux.NewRouter()
+	mux := http.NewServeMux()
+
 	addr := fmt.Sprintf(":%d", port)
 	if isLocal {
 		addr = fmt.Sprintf("localhost:%d", port)
 	}
 
-	api := &apiServer{
+	resource := &clientResource{store: store}
+
+	mux.HandleFunc("GET /status", statusHandler)
+	mux.HandleFunc("GET /warmup", resource.warmup)
+	mux.HandleFunc("POST /clientes/{id}/transacoes", resource.postTransaction)
+	mux.HandleFunc("GET /clientes/{id}/extrato", resource.getStatement)
+
+	return &apiServer{
 		server: http.Server{
 			Addr:    addr,
-			Handler: r,
+			Handler: setJSONContentType(mux),
 		},
-		resource: &clientResource{store: store},
+		resource: resource,
 	}
-
-	r.Use(setJSONContentType)
-	r.HandleFunc("/status", statusHandler).Methods(http.MethodGet)
-	r.HandleFunc("/warmup", api.resource.warmup).Methods(http.MethodGet)
-	r.HandleFunc("/clientes/{id}/transacoes", api.resource.postTransaction).Methods(http.MethodPost)
-	r.HandleFunc("/clientes/{id}/extrato", api.resource.getStatement).Methods(http.MethodGet)
-
-	return api
 }
 
 func (s *apiServer) Start(ctx context.Context) error {

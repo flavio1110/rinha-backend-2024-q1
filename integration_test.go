@@ -259,7 +259,7 @@ func migrateDB(ctx context.Context, connString string) error {
 		return fmt.Errorf("creating connection pool: %w", err)
 	}
 
-	initContent, err := os.ReadFile("../../deploy/initdb.sql")
+	initContent, err := os.ReadFile("deploy/initdb.sql")
 	if err != nil {
 		log.Fatal("read init DB file: ", err)
 	}
