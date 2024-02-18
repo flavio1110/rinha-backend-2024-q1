@@ -13,18 +13,18 @@ jobs:
       - uses: actions/setup-go@v4
         with:
           go-version: "1.22"
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v2
+        uses: golangci/golangci-lint-action@v4
         with:
           working-directory: .
-          version: latest
+          version: 1.56.1
 
   acceptance-tests:
     name: Acceptance Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: actions/setup-go@v4
         with:
           go-version: "1.22"
@@ -37,7 +37,7 @@ jobs:
       - uses: actions/setup-go@v4
         with:
           go-version: "1.22"
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - run: |
           echo ${{ github.repository_owner }}
           echo ${{ github.repository }}
