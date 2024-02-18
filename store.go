@@ -11,6 +11,8 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+const chunckSize = 1000
+
 type accountsDBStore struct {
 	dbPool       *pgxpool.Pool
 	chTran       chan transaction
@@ -35,7 +37,7 @@ func newAccountsDBStore(
 
 	pgxConfig.MinConns = config.MinConn
 	pgxConfig.MaxConns = config.MaxConn
-	pgxConfig.MaxConnIdleTime = time.Minute * 3
+	pgxConfig.MaxConnIdleTime = time.Millisecond * 100
 
 	dbPool, err := pgxpool.NewWithConfig(context.Background(), pgxConfig)
 	if err != nil {
@@ -44,7 +46,7 @@ func newAccountsDBStore(
 
 	store := &accountsDBStore{
 		dbPool:       dbPool,
-		chTran:       make(chan transaction, 1000),
+		chTran:       make(chan transaction, chunckSize),
 		pumpInterval: pumpInterval,
 	}
 
@@ -178,7 +180,7 @@ func (s *accountsDBStore) getStatement(ctx context.Context, clientID int) (state
 func (s *accountsDBStore) startTransactionPump(ctx context.Context) {
 	log.Ctx(ctx).Info().Msg("starting transaction pump")
 
-	bulk := make([]transaction, 0, 1000)
+	bulk := make([]transaction, 0, chunckSize)
 
 	pump := func() {
 		if len(bulk) == 0 {
