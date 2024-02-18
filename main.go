@@ -32,6 +32,8 @@ func main() {
 	}
 	defer terminateDBPool()
 
+	log.Ctx(ctx).Info().Msgf("DB configured with batch inserts: %v", dbConfig.useBatchInserts)
+
 	isLocal := os.Getenv("LOCAL_ENV") == "true"
 	port, err := strconv.Atoi(os.Getenv("HTTP_PORT"))
 	if err != nil {

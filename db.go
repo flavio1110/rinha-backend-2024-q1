@@ -11,7 +11,7 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-const chunckSize = 1000
+const chunckSize = 1
 
 type accountsDBStore struct {
 	dbPool          *pgxpool.Pool
