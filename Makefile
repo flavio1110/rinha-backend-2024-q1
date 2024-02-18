@@ -57,6 +57,4 @@ load-test:
 	@./scripts/build-image.sh
 	@docker-compose -f ./deploy/docker-compose.yml -p "flavio1110-rinha-2024-q1" up -d --force-recreate --renew-anon-volumes
 	
-	@export WORKSPACE=/Users/flaviosilva/code/rinha-backend-2024-q1/rinha-original/load-test
-
-	@./rinha-original/gatling-charts-highcharts-bundle-3.9.5/bin/gatling.sh -rm local -s RinhaBackendCrebitosSimulation -rd "DESCRICAO" -rf $$WORKSPACE/user-files/results -sf $$WORKSPACE/user-files/simulations -rsf $$WORKSPACE/user-files/resources
+	@export WORKSPACE=$(pwd)/rinha-original/load-test && ./rinha-original/gatling-charts-highcharts-bundle-3.9.5/bin/gatling.sh -rm local -s RinhaBackendCrebitosSimulation -rd "DESCRICAO" -rf $$WORKSPACE/user-files/results -sf $$WORKSPACE/user-files/simulations -rsf $$WORKSPACE/user-files/resources
