@@ -32,6 +32,7 @@ services:
       - DB_URL=postgres://user:super-secret@postgres:5432/accounts?sslmode=disable
       - DB_MAX_CONNECTIONS=45
       - DB_MIN_CONNECTIONS=45
+      - DB_USE_BATCH_INSERTS=false
     depends_on:
       postgres:
         condition: service_healthy

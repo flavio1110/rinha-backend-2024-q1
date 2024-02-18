@@ -74,9 +74,12 @@ func getDBConfig() (dbConfig, error) {
 		return dbConfig{}, fmt.Errorf("unable to parse DB_MIN_CONNECTIONS %q", os.Getenv("DB_MIN_CONNECTIONS"))
 	}
 
+	useBatchInsert := os.Getenv("DB_USE_BATCH_INSERTS")
+
 	return dbConfig{
-		DbURL:   dbURL,
-		MaxConn: int32(maxConnections),
-		MinConn: int32(minConnections),
+		dbURL:           dbURL,
+		maxConn:         int32(maxConnections),
+		minConn:         int32(minConnections),
+		useBatchInserts: useBatchInsert == "true" || useBatchInsert == "", // default to true
 	}, nil
 }

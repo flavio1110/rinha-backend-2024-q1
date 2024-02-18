@@ -14,15 +14,17 @@ import (
 const chunckSize = 1000
 
 type accountsDBStore struct {
-	dbPool       *pgxpool.Pool
-	chTran       chan transaction
-	pumpInterval time.Duration
+	dbPool          *pgxpool.Pool
+	chTran          chan transaction
+	pumpInterval    time.Duration
+	useBatchInserts bool
 }
 
 type dbConfig struct {
-	DbURL   string
-	MaxConn int32
-	MinConn int32
+	dbURL           string
+	maxConn         int32
+	minConn         int32
+	useBatchInserts bool
 }
 
 func newAccountsDBStore(
@@ -30,13 +32,13 @@ func newAccountsDBStore(
 	pumpInterval time.Duration,
 	config dbConfig) (*accountsDBStore, func(), error) {
 
-	pgxConfig, err := pgxpool.ParseConfig(config.DbURL)
+	pgxConfig, err := pgxpool.ParseConfig(config.dbURL)
 	if err != nil {
 		return nil, nil, fmt.Errorf("parsing db url: %w", err)
 	}
 
-	pgxConfig.MinConns = config.MinConn
-	pgxConfig.MaxConns = config.MaxConn
+	pgxConfig.MinConns = config.minConn
+	pgxConfig.MaxConns = config.maxConn
 	pgxConfig.MaxConnIdleTime = time.Millisecond * 100
 
 	dbPool, err := pgxpool.NewWithConfig(context.Background(), pgxConfig)
@@ -45,9 +47,10 @@ func newAccountsDBStore(
 	}
 
 	store := &accountsDBStore{
-		dbPool:       dbPool,
-		chTran:       make(chan transaction, chunckSize),
-		pumpInterval: pumpInterval,
+		dbPool:          dbPool,
+		chTran:          make(chan transaction, chunckSize),
+		pumpInterval:    pumpInterval,
+		useBatchInserts: config.useBatchInserts,
 	}
 
 	go store.startTransactionPump(ctx)
@@ -79,6 +82,14 @@ func (s *accountsDBStore) getAllClients(ctx context.Context) ([]client, error) {
 }
 
 func (s *accountsDBStore) addTransaction(ctx context.Context, clientID int, transaction transaction) (currentBalance, error) {
+	if s.useBatchInserts {
+		return s.addTransactionInBatch(ctx, clientID, transaction)
+	}
+
+	return s.addTransactionInTransaction(ctx, clientID, transaction)
+}
+
+func (s *accountsDBStore) addTransactionInBatch(ctx context.Context, clientID int, transaction transaction) (currentBalance, error) {
 	var (
 		newBalance     int64
 		limit          int64
@@ -105,6 +116,67 @@ func (s *accountsDBStore) addTransaction(ctx context.Context, clientID int, tran
 
 	transaction.AccountID = clientID
 	s.chTran <- transaction
+
+	return currentBalance{
+		Balance: newBalance,
+		Limit:   limit,
+	}, nil
+}
+
+func (s *accountsDBStore) addTransactionInTransaction(ctx context.Context, clientID int, transaction transaction) (currentBalance, error) {
+	tx, err := s.dbPool.Begin(ctx)
+	if err != nil {
+		return currentBalance{}, fmt.Errorf("beginning transaction: %w", err)
+	}
+	defer func() {
+		errRollback := tx.Rollback(ctx)
+
+		// :( errors.Is(errRollback, pgx.ErrTxClosed) doesn't work
+		if errRollback != nil && errRollback.Error() != "tx is closed" {
+			log.Err(errRollback).Msg("fail to rollback transaction")
+		}
+	}()
+
+	var (
+		newBalance     int64
+		limit          int64
+		amountToChange int64 = transaction.Amount
+	)
+	if transaction.Type == Debit {
+		amountToChange = -amountToChange
+	}
+	updateStt := `UPDATE accounts 
+				  SET balance = balance + $1 
+				  WHERE id = $2 AND acc_limit >= ABS(balance + $1)
+				  RETURNING balance, acc_limit`
+
+	err = tx.QueryRow(ctx, updateStt, amountToChange, clientID).Scan(&newBalance, &limit)
+
+	if errors.Is(err, pgx.ErrNoRows) {
+		return currentBalance{}, errInsufficientFunds
+	}
+	if err != nil {
+		return currentBalance{}, fmt.Errorf("updating balance: %w", err)
+	}
+
+	insertStt := `INSERT INTO transactions (account_id, amount, description, type, created_at)
+				  VALUES ($1, $2, $3, $4, $5)`
+
+	_, err = tx.Exec(ctx,
+		insertStt,
+		clientID,
+		transaction.Amount,
+		transaction.Description,
+		transaction.Type,
+		time.Now().UTC())
+
+	if err != nil {
+		return currentBalance{}, fmt.Errorf("updating balance: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return currentBalance{}, fmt.Errorf("committing transaction: %w", err)
+	}
 
 	return currentBalance{
 		Balance: newBalance,
