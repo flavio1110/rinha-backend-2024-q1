@@ -1,8 +1,9 @@
-package accounts
+package main
 
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -17,7 +18,7 @@ type apiServer struct {
 	resource *clientResource
 }
 
-func NewServer(port int, store AccountsStore, isLocal bool) *apiServer {
+func newServer(port int, store accountsStore, isLocal bool) *apiServer {
 	r := mux.NewRouter()
 	addr := fmt.Sprintf(":%d", port)
 	if isLocal {
@@ -50,7 +51,7 @@ func (s *apiServer) Start(ctx context.Context) error {
 
 	log.Info().Msgf("Listening HTTP on address %s", s.server.Addr)
 
-	if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+	if err := s.server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return fmt.Errorf("listening HTTP: %w", err)
 	}
 

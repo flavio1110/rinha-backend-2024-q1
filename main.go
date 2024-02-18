@@ -10,7 +10,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/flavio1110/rinha-de-backend-2024-q1/internal/accounts"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
@@ -27,7 +26,7 @@ func main() {
 		log.Fatal().Err(err).Msg("configure db")
 	}
 
-	store, terminateDBPool, err := accounts.NewAccountsDBStore(ctx, time.Second*30, dbConfig)
+	store, terminateDBPool, err := newAccountsDBStore(ctx, time.Second*30, dbConfig)
 	if err != nil {
 		log.Fatal().Err(err).Msg("configure db store")
 	}
@@ -39,7 +38,7 @@ func main() {
 		log.Fatal().Err(err).Msgf("Unable to parse HTTP_PORT %q", os.Getenv("HTTP_PORT"))
 	}
 
-	server := accounts.NewServer(port, store, isLocal)
+	server := newServer(port, store, isLocal)
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
@@ -63,19 +62,19 @@ func main() {
 	log.Info().Msg("Server stopped")
 }
 
-func getDBConfig() (accounts.DBConfig, error) {
+func getDBConfig() (dbConfig, error) {
 	dbURL := os.Getenv("DB_URL")
 	maxConnections, err := strconv.Atoi(os.Getenv("DB_MAX_CONNECTIONS"))
 	if err != nil {
-		return accounts.DBConfig{}, fmt.Errorf("unable to parse DB_MAX_CONNECTIONS %q", os.Getenv("DB_MAX_CONNECTIONS"))
+		return dbConfig{}, fmt.Errorf("unable to parse DB_MAX_CONNECTIONS %q", os.Getenv("DB_MAX_CONNECTIONS"))
 	}
 
 	minConnections, err := strconv.Atoi(os.Getenv("DB_MIN_CONNECTIONS"))
 	if err != nil {
-		return accounts.DBConfig{}, fmt.Errorf("unable to parse DB_MIN_CONNECTIONS %q", os.Getenv("DB_MIN_CONNECTIONS"))
+		return dbConfig{}, fmt.Errorf("unable to parse DB_MIN_CONNECTIONS %q", os.Getenv("DB_MIN_CONNECTIONS"))
 	}
 
-	return accounts.DBConfig{
+	return dbConfig{
 		DbURL:   dbURL,
 		MaxConn: int32(maxConnections),
 		MinConn: int32(minConnections),

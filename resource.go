@@ -1,10 +1,11 @@
-package accounts
+package main
 
 import (
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"time"
@@ -14,14 +15,14 @@ import (
 )
 
 type clientResource struct {
-	store           AccountsStore
+	store           accountsStore
 	existingClients map[string]uint64
 }
 
-type AccountsStore interface {
-	GetAllClients(ctx context.Context) ([]client, error)
-	AddTransaction(ctx context.Context, clientID int, transaction transaction) (currentBalance, error)
-	GetStatement(ctx context.Context, clientID int) (statement, error)
+type accountsStore interface {
+	getAllClients(ctx context.Context) ([]client, error)
+	addTransaction(ctx context.Context, clientID int, transaction transaction) (currentBalance, error)
+	getStatement(ctx context.Context, clientID int) (statement, error)
 }
 
 func (s *clientResource) postTransaction(w http.ResponseWriter, r *http.Request) {
@@ -37,14 +38,19 @@ func (s *clientResource) postTransaction(w http.ResponseWriter, r *http.Request)
 		w.WriteHeader(http.StatusUnprocessableEntity)
 		return
 	}
-	defer r.Body.Close()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			log.Err(err).Msg("error closing request body")
+		}
+	}(r.Body)
 
 	if !t.isValid() {
 		w.WriteHeader(http.StatusUnprocessableEntity)
 		return
 	}
 
-	newBalance, err := s.store.AddTransaction(r.Context(), id, t)
+	newBalance, err := s.store.addTransaction(r.Context(), id, t)
 
 	if err != nil {
 		if errors.Is(err, errInsufficientFunds) {
@@ -67,7 +73,7 @@ func (s *clientResource) getStatement(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	st, err := s.store.GetStatement(r.Context(), id)
+	st, err := s.store.getStatement(r.Context(), id)
 	if err != nil {
 		log.Err(err).Msg("error getting statement")
 		writeResponse(w, http.StatusInternalServerError, "")
@@ -108,7 +114,7 @@ func (s *clientResource) warmup(w http.ResponseWriter, r *http.Request) {
 func (s *clientResource) loadExistingClients(ctx context.Context) error {
 	s.existingClients = make(map[string]uint64)
 
-	clients, err := s.store.GetAllClients(ctx)
+	clients, err := s.store.getAllClients(ctx)
 	if err != nil {
 		return fmt.Errorf("getting all clients: %w", err)
 	}
@@ -123,7 +129,7 @@ func (s *clientResource) loadExistingClients(ctx context.Context) error {
 type transaction struct {
 	Amount      int64           `json:"valor"`
 	Description string          `json:"descricao"`
-	Type        TransactionType `json:"tipo"`
+	Type        transactionType `json:"tipo"`
 	CreateAt    time.Time       `json:"realizada_em"`
 	AccountID   int             `json:"-"`
 }
@@ -141,11 +147,11 @@ func (t *transaction) isValid() bool {
 	return true
 }
 
-type TransactionType string
+type transactionType string
 
 const (
-	Debit  TransactionType = "d"
-	Credit TransactionType = "c"
+	Debit  transactionType = "d"
+	Credit transactionType = "c"
 )
 
 type currentBalance struct {

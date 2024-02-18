@@ -1,4 +1,4 @@
-package accounts
+package main
 
 import (
 	"context"
@@ -29,7 +29,7 @@ func Test_Endpoints(t *testing.T) {
 	require.NoError(t, err)
 	defer terminateDB(t)
 
-	store, terminateDBPool, err := NewAccountsDBStore(ctx, time.Microsecond*1, DBConfig{DbURL: connString, MaxConn: 10, MinConn: 5})
+	store, terminateDBPool, err := newAccountsDBStore(ctx, time.Microsecond*1, dbConfig{DbURL: connString, MaxConn: 10, MinConn: 5})
 	require.NoError(t, err, "configure db store")
 	defer terminateDBPool()
 
@@ -37,7 +37,7 @@ func Test_Endpoints(t *testing.T) {
 		require.NoError(t, err, "migrate DB")
 	}
 
-	api := NewServer(8888, store, true)
+	api := newServer(8888, store, true)
 	ts := httptest.NewServer(api.server.Handler)
 	defer ts.Close()
 
@@ -60,7 +60,10 @@ func Test_Endpoints(t *testing.T) {
 
 		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
-		defer resp.Body.Close()
+		defer func(Body io.ReadCloser) {
+			err := Body.Close()
+			require.NoError(t, err)
+		}(resp.Body)
 
 		var s statement
 		err = json.Unmarshal(body, &s)
@@ -168,7 +171,10 @@ func Test_Endpoints(t *testing.T) {
 
 		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
-		defer resp.Body.Close()
+		defer func(Body io.ReadCloser) {
+			err := Body.Close()
+			require.NoError(t, err)
+		}(resp.Body)
 
 		var s statement
 		err = json.Unmarshal(body, &s)

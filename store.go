@@ -1,4 +1,4 @@
-package accounts
+package main
 
 import (
 	"context"
@@ -11,22 +11,22 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-type AccountsDBStore struct {
+type accountsDBStore struct {
 	dbPool       *pgxpool.Pool
 	chTran       chan transaction
 	pumpInterval time.Duration
 }
 
-type DBConfig struct {
+type dbConfig struct {
 	DbURL   string
 	MaxConn int32
 	MinConn int32
 }
 
-func NewAccountsDBStore(
+func newAccountsDBStore(
 	ctx context.Context,
 	pumpInterval time.Duration,
-	config DBConfig) (*AccountsDBStore, func(), error) {
+	config dbConfig) (*accountsDBStore, func(), error) {
 
 	pgxConfig, err := pgxpool.ParseConfig(config.DbURL)
 	if err != nil {
@@ -42,18 +42,18 @@ func NewAccountsDBStore(
 		return nil, nil, fmt.Errorf("creating connection pool: %w", err)
 	}
 
-	store := &AccountsDBStore{
+	store := &accountsDBStore{
 		dbPool:       dbPool,
 		chTran:       make(chan transaction, 1000),
 		pumpInterval: pumpInterval,
 	}
 
-	go store.StartTransactionPump(ctx)
+	go store.startTransactionPump(ctx)
 
 	return store, dbPool.Close, nil
 }
 
-func (s *AccountsDBStore) GetAllClients(ctx context.Context) ([]client, error) {
+func (s *accountsDBStore) getAllClients(ctx context.Context) ([]client, error) {
 	rows, err := s.dbPool.Query(ctx, "SELECT id, acc_limit, balance FROM accounts")
 	if err != nil {
 		return nil, fmt.Errorf("querying clients: %w", err)
@@ -76,11 +76,11 @@ func (s *AccountsDBStore) GetAllClients(ctx context.Context) ([]client, error) {
 	return clients, nil
 }
 
-func (s *AccountsDBStore) AddTransaction(ctx context.Context, clientID int, transaction transaction) (currentBalance, error) {
+func (s *accountsDBStore) addTransaction(ctx context.Context, clientID int, transaction transaction) (currentBalance, error) {
 	var (
 		newBalance     int64
 		limit          int64
-		amountToChange int64 = transaction.Amount
+		amountToChange = transaction.Amount
 	)
 
 	if transaction.Type == Debit {
@@ -110,7 +110,7 @@ func (s *AccountsDBStore) AddTransaction(ctx context.Context, clientID int, tran
 	}, nil
 }
 
-func (s *AccountsDBStore) GetStatement(ctx context.Context, clientID int) (statement, error) {
+func (s *accountsDBStore) getStatement(ctx context.Context, clientID int) (statement, error) {
 	queryTransactions := `SELECT t.amount, t.description, t.type, t.created_at
 						  FROM transactions t
 						  WHERE t.account_id = $1
@@ -132,7 +132,12 @@ func (s *AccountsDBStore) GetStatement(ctx context.Context, clientID int) (state
 	batch.Queue(queryBalance, clientID)
 
 	results := s.dbPool.SendBatch(ctx, &batch)
-	defer results.Close()
+	defer func(results pgx.BatchResults) {
+		err := results.Close()
+		if err != nil {
+			log.Ctx(ctx).Err(err).Msg("error closing batch results")
+		}
+	}(results)
 
 	rows, err := results.Query()
 	if err != nil {
@@ -170,7 +175,7 @@ func (s *AccountsDBStore) GetStatement(ctx context.Context, clientID int) (state
 	}, nil
 }
 
-func (s *AccountsDBStore) StartTransactionPump(ctx context.Context) {
+func (s *accountsDBStore) startTransactionPump(ctx context.Context) {
 	log.Ctx(ctx).Info().Msg("starting transaction pump")
 
 	bulk := make([]transaction, 0, 1000)
@@ -203,7 +208,7 @@ func (s *AccountsDBStore) StartTransactionPump(ctx context.Context) {
 	}
 }
 
-func (s *AccountsDBStore) bulkInsertTransactions(ctx context.Context, bulk []transaction) {
+func (s *accountsDBStore) bulkInsertTransactions(ctx context.Context, bulk []transaction) {
 	columns := []string{"account_id", "amount", "description", "type", "created_at"}
 
 	_, err := s.dbPool.CopyFrom(ctx, pgx.Identifier{"transactions"}, columns, pgx.CopyFromSlice(len(bulk), func(i int) ([]any, error) {

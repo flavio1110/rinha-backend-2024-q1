@@ -78,3 +78,8 @@ services:
       timeout: 5s
       retries: 10
       start_period: 5s
+
+networks:
+  default:
+    driver: bridge
+    name: rinha-nginx-2024q1
