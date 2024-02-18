@@ -1,4 +1,4 @@
-CREATE TABLE Accounts (
+CREATE UNLOGGED TABLE Accounts (
     id bigint PRIMARY KEY,
     acc_limit bigint NOT NULL,
     balance bigint NOT NULL
@@ -13,13 +13,18 @@ values
     (4, 10000000, 0),
     (5, 500000, 0);
 
-ALTER TABLE Accounts SET (fillfactor = 90);
+ALTER TABLE
+    Accounts
+SET
+    (fillfactor = 90);
 
-CREATE TABLE Transactions (
+CREATE UNLOGGED TABLE Transactions (
     id bigserial PRIMARY KEY,
-    account_id bigint NOT NULL, -- no FK for simplicity and speed. Not recommended :)
+    account_id bigint NOT NULL,
+    -- no FK for simplicity and speed. Not recommended :)
     amount bigint NOT NULL,
-    type varchar(1) NOT NULL, -- d or c
+    type varchar(1) NOT NULL,
+    -- d or c
     description varchar(10) NOT NULL,
     created_at timestamp NOT NULL
 );

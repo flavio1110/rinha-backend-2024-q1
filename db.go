@@ -11,7 +11,7 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-const chunckSize = 1
+const chunckSize = 10
 
 type accountsDBStore struct {
 	dbPool          *pgxpool.Pool
@@ -273,7 +273,7 @@ func (s *accountsDBStore) startTransactionPump(ctx context.Context) {
 		case t := <-s.chTran:
 			bulk = append(bulk, t)
 
-			if len(bulk) == 1000 {
+			if len(bulk) == chunckSize {
 				pump()
 			}
 		case <-time.After(s.pumpInterval):
